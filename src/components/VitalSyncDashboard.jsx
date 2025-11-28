@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
-import { Heart, Activity, Thermometer, Footprints, AlertTriangle, Bell, Users, Wifi, WifiOff, Settings, Clock, Shield, AlertCircle, CheckCircle, LogOut, Loader2, Plus, X } from 'lucide-react';
+import { Heart, Activity, Thermometer, Footprints, AlertTriangle, Bell, Users, Wifi, WifiOff, Clock, Shield, AlertCircle, CheckCircle, LogOut, Loader2, Plus, X, Server, TrendingUp, History, UserCog, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { GET_MY_FAMILY_GROUPS, GET_FAMILY_MEMBERS, GET_LATEST_VITAL, GET_ROLLING_VITALS, GET_ACTIVE_ALERTS } from '@/lib/graphql/queries';
+import { GET_MY_FAMILY_GROUPS, GET_FAMILY_MEMBERS, GET_LATEST_VITAL, GET_ROLLING_VITALS, GET_ACTIVE_ALERTS, GET_SYSTEM_HEALTH, GET_DAILY_AVERAGES, GET_RECENT_ALERTS, GET_VITALS, GET_CAREGIVERS } from '@/lib/graphql/queries';
 import { ACKNOWLEDGE_ALERT, CREATE_FAMILY_GROUP } from '@/lib/graphql/mutations';
 import { ALERT_CREATED, VITAL_UPDATED } from '@/lib/graphql/subscriptions';
 import { useMutation, useSubscription } from '@apollo/client';
@@ -361,6 +361,404 @@ const RollingChart = ({ data, metric, label, statusField }) => {
   );
 };
 
+// Componente de System Health
+const SystemHealthPanel = ({ health, loading }) => {
+  if (loading) {
+    return (
+      <div className="bg-gray-800/50 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Server className="w-5 h-5 text-blue-400" />
+          <h3 className="font-semibold">Estado del Sistema</h3>
+        </div>
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!health) return null;
+
+  const statusColor = health.status === 'healthy' ? 'text-emerald-400' : health.status === 'degraded' ? 'text-amber-400' : 'text-red-400';
+
+  return (
+    <div className="bg-gray-800/50 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Server className="w-5 h-5 text-blue-400" />
+          <h3 className="font-semibold">Estado del Sistema</h3>
+        </div>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor} bg-current/10`}>
+          {health.status?.toUpperCase()}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-gray-700/30 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-blue-400">{health.activeUsers || 0}</p>
+          <p className="text-xs text-gray-400">Usuarios Activos</p>
+        </div>
+        <div className="bg-gray-700/30 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-purple-400">{health.activeMembers || 0}</p>
+          <p className="text-xs text-gray-400">Miembros Activos</p>
+        </div>
+        <div className="bg-gray-700/30 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-emerald-400">{health.readingsLastHour || 0}</p>
+          <p className="text-xs text-gray-400">Lecturas/Hora</p>
+        </div>
+        <div className="bg-gray-700/30 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-amber-400">{health.activeAlerts || 0}</p>
+          <p className="text-xs text-gray-400">Alertas Activas</p>
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-gray-700 flex items-center justify-between text-xs text-gray-500">
+        <span>Versión: {health.version || 'N/A'}</span>
+        <span>{health.timestamp ? new Date(health.timestamp).toLocaleTimeString() : ''}</span>
+      </div>
+    </div>
+  );
+};
+
+// Componente de Tendencias Semanales
+const WeeklyTrendsChart = ({ data, loading }) => {
+  if (loading) {
+    return (
+      <div className="bg-gray-800/50 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="w-5 h-5 text-purple-400" />
+          <h3 className="font-semibold">Tendencias Semanales</h3>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-gray-800/50 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="w-5 h-5 text-purple-400" />
+          <h3 className="font-semibold">Tendencias Semanales</h3>
+        </div>
+        <div className="text-center py-12 text-gray-500">
+          <Calendar className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>Sin datos históricos</p>
+        </div>
+      </div>
+    );
+  }
+
+  const maxHR = Math.max(...data.map(d => d.avgHeartRate || 0));
+  const maxSteps = Math.max(...data.map(d => d.maxSteps || 0));
+
+  return (
+    <div className="bg-gray-800/50 rounded-2xl p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp className="w-5 h-5 text-purple-400" />
+        <h3 className="font-semibold">Tendencias Semanales</h3>
+      </div>
+
+      <div className="space-y-4">
+        {/* Heart Rate Trend */}
+        <div>
+          <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+            <Heart className="w-3 h-3" /> Promedio HR
+          </p>
+          <div className="flex items-end gap-1 h-16">
+            {data.map((day, i) => {
+              const height = maxHR > 0 ? ((day.avgHeartRate || 0) / maxHR) * 100 : 0;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center">
+                  <div
+                    className="w-full bg-red-500/70 rounded-t transition-all"
+                    style={{ height: `${Math.max(5, height)}%` }}
+                    title={`${day.avgHeartRate?.toFixed(0) || 0} bpm`}
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1">
+                    {new Date(day.date).toLocaleDateString('es', { weekday: 'short' }).slice(0, 2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Steps Trend */}
+        <div>
+          <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+            <Footprints className="w-3 h-3" /> Pasos Máximos
+          </p>
+          <div className="flex items-end gap-1 h-16">
+            {data.map((day, i) => {
+              const height = maxSteps > 0 ? ((day.maxSteps || 0) / maxSteps) * 100 : 0;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center">
+                  <div
+                    className="w-full bg-emerald-500/70 rounded-t transition-all"
+                    style={{ height: `${Math.max(5, height)}%` }}
+                    title={`${day.maxSteps?.toLocaleString() || 0} pasos`}
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1">
+                    {new Date(day.date).toLocaleDateString('es', { weekday: 'short' }).slice(0, 2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-700">
+          <div className="text-center">
+            <p className="text-sm font-semibold text-white">
+              {(data.reduce((sum, d) => sum + (d.avgHeartRate || 0), 0) / data.length).toFixed(0)}
+            </p>
+            <p className="text-[10px] text-gray-500">Avg HR</p>
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-white">
+              {(data.reduce((sum, d) => sum + (d.avgOxygenLevel || 0), 0) / data.length).toFixed(1)}%
+            </p>
+            <p className="text-[10px] text-gray-500">Avg SpO₂</p>
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-white">
+              {data.reduce((sum, d) => sum + (d.readingCount || 0), 0)}
+            </p>
+            <p className="text-[10px] text-gray-500">Lecturas</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente de Historial de Alertas Recientes
+const RecentAlertsPanel = ({ alerts, loading }) => {
+  if (loading) {
+    return (
+      <div className="bg-gray-800/50 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <History className="w-5 h-5 text-amber-400" />
+          <h3 className="font-semibold">Historial de Alertas (24h)</h3>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+        </div>
+      </div>
+    );
+  }
+
+  const severityStyles = {
+    critical: 'bg-red-500/10 border-red-500/30 text-red-400',
+    warning: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+    normal: 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+  };
+
+  return (
+    <div className="bg-gray-800/50 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <History className="w-5 h-5 text-amber-400" />
+          <h3 className="font-semibold">Historial de Alertas (24h)</h3>
+        </div>
+        <span className="text-xs text-gray-500">{alerts?.length || 0} alertas</span>
+      </div>
+
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+        {!alerts || alerts.length === 0 ? (
+          <div className="text-center py-6 text-gray-500">
+            <CheckCircle className="w-8 h-8 mx-auto mb-2 text-emerald-500/30" />
+            <p className="text-sm">Sin alertas recientes</p>
+          </div>
+        ) : (
+          alerts.map(alert => (
+            <div key={alert.id} className={`p-2 rounded-lg border ${severityStyles[mapStatus(alert.severity)]} text-xs`}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="flex-1">{alert.message}</p>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] ${alert.status === 'ACTIVE' ? 'bg-red-500/20' : alert.status === 'ACKNOWLEDGED' ? 'bg-amber-500/20' : 'bg-gray-500/20'}`}>
+                  {alert.status}
+                </span>
+              </div>
+              <p className="text-gray-500 mt-1">
+                {new Date(alert.createdAt).toLocaleString()}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Componente de Historial de Vitales
+const VitalsHistoryTable = ({ vitals, loading, page, setPage, hasMore }) => {
+  if (loading && vitals.length === 0) {
+    return (
+      <div className="bg-gray-800/50 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="w-5 h-5 text-emerald-400" />
+          <h3 className="font-semibold">Historial de Vitales</h3>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-800/50 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Activity className="w-5 h-5 text-emerald-400" />
+          <h3 className="font-semibold">Historial de Vitales</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="p-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-xs text-gray-400">Pág. {page + 1}</span>
+          <button
+            onClick={() => setPage(p => p + 1)}
+            disabled={!hasMore}
+            className="p-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {vitals.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Sin registros</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-700">
+                <th className="text-left py-2 px-1">Fecha</th>
+                <th className="text-center py-2 px-1">HR</th>
+                <th className="text-center py-2 px-1">SpO₂</th>
+                <th className="text-center py-2 px-1">Temp</th>
+                <th className="text-center py-2 px-1">Pasos</th>
+                <th className="text-center py-2 px-1">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vitals.map((vital, i) => (
+                <tr key={vital.id || i} className="border-b border-gray-700/50 hover:bg-gray-700/20">
+                  <td className="py-2 px-1 text-gray-300">
+                    {new Date(vital.readingTimestamp).toLocaleString('es', {
+                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </td>
+                  <td className={`text-center py-2 px-1 ${mapStatus(vital.heartRateStatus) === 'critical' ? 'text-red-400' : mapStatus(vital.heartRateStatus) === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {vital.heartRate || '-'}
+                  </td>
+                  <td className={`text-center py-2 px-1 ${mapStatus(vital.oxygenStatus) === 'critical' ? 'text-red-400' : mapStatus(vital.oxygenStatus) === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {vital.oxygenLevel || '-'}%
+                  </td>
+                  <td className={`text-center py-2 px-1 ${mapStatus(vital.temperatureStatus) === 'critical' ? 'text-red-400' : mapStatus(vital.temperatureStatus) === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {vital.bodyTemperature || '-'}°
+                  </td>
+                  <td className="text-center py-2 px-1 text-gray-300">
+                    {vital.steps?.toLocaleString() || '-'}
+                  </td>
+                  <td className="text-center py-2 px-1">
+                    <span className={`inline-block w-2 h-2 rounded-full ${mapStatus(vital.overallStatus) === 'critical' ? 'bg-red-500' : mapStatus(vital.overallStatus) === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Componente de Cuidadores
+const CaregiversPanel = ({ caregivers, loading, familyName }) => {
+  if (loading) {
+    return (
+      <div className="bg-gray-800/50 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <UserCog className="w-5 h-5 text-cyan-400" />
+          <h3 className="font-semibold">Cuidadores</h3>
+        </div>
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-800/50 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <UserCog className="w-5 h-5 text-cyan-400" />
+          <h3 className="font-semibold">Cuidadores</h3>
+        </div>
+        <span className="text-xs text-gray-500">{caregivers?.length || 0} personas</span>
+      </div>
+
+      {!caregivers || caregivers.length === 0 ? (
+        <div className="text-center py-6 text-gray-500">
+          <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Sin cuidadores asignados</p>
+          <p className="text-xs mt-1">Solo el administrador tiene acceso</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {caregivers.map(caregiver => (
+            <div key={caregiver.id} className="p-3 rounded-lg bg-gray-700/30 border border-gray-600/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-medium">Usuario #{caregiver.userId?.slice(-6)}</p>
+                    <p className="text-[10px] text-gray-500">
+                      Unido: {new Date(caregiver.joinedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {caregiver.canAcknowledgeAlerts && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                    Alertas
+                  </span>
+                )}
+                {caregiver.canViewHistory && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                    Historial
+                  </span>
+                )}
+                {caregiver.canEditMembers && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                    Editar
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Componente Principal del Dashboard
 export default function VitalSyncDashboard() {
   const { user, logout } = useAuth();
@@ -369,6 +767,8 @@ export default function VitalSyncDashboard() {
   const [showCreateFamilyModal, setShowCreateFamilyModal] = useState(false);
   const [realtimeAlerts, setRealtimeAlerts] = useState([]);
   const [wsConnected, setWsConnected] = useState(false);
+  const [vitalsPage, setVitalsPage] = useState(0);
+  const VITALS_PER_PAGE = 10;
 
   // Query para obtener los grupos familiares
   const { data: groupsData, loading: groupsLoading } = useQuery(GET_MY_FAMILY_GROUPS);
@@ -390,6 +790,11 @@ export default function VitalSyncDashboard() {
       setSelectedMember(familyMembers[0]);
     }
   }, [familyMembers, selectedMember]);
+
+  // Reset vitals page when member changes
+  useEffect(() => {
+    setVitalsPage(0);
+  }, [selectedMember?.memberId]);
 
   // Query para el vital del miembro seleccionado
   const { data: vitalData, loading: vitalLoading } = useQuery(GET_LATEST_VITAL, {
@@ -416,6 +821,47 @@ export default function VitalSyncDashboard() {
   });
 
   const queryAlerts = alertsData?.activeAlerts || [];
+
+  // Query para System Health
+  const { data: healthData, loading: healthLoading } = useQuery(GET_SYSTEM_HEALTH, {
+    pollInterval: 30000 // Actualizar cada 30 segundos
+  });
+
+  // Query para Daily Averages (últimos 7 días)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const today = new Date();
+
+  const { data: dailyData, loading: dailyLoading } = useQuery(GET_DAILY_AVERAGES, {
+    variables: {
+      memberId: selectedMember?.memberId,
+      startDate: sevenDaysAgo.toISOString().split('T')[0],
+      endDate: today.toISOString().split('T')[0]
+    },
+    skip: !selectedMember?.memberId
+  });
+
+  // Query para alertas recientes (últimas 24 horas)
+  const { data: recentAlertsData, loading: recentAlertsLoading } = useQuery(GET_RECENT_ALERTS, {
+    variables: { hours: 24 },
+    pollInterval: 60000 // Actualizar cada minuto
+  });
+
+  // Query para historial de vitales paginado
+  const { data: vitalsHistoryData, loading: vitalsHistoryLoading } = useQuery(GET_VITALS, {
+    variables: {
+      memberId: selectedMember?.memberId,
+      limit: VITALS_PER_PAGE,
+      offset: vitalsPage * VITALS_PER_PAGE
+    },
+    skip: !selectedMember?.memberId
+  });
+
+  // Query para cuidadores
+  const { data: caregiversData, loading: caregiversLoading } = useQuery(GET_CAREGIVERS, {
+    variables: { groupId: familyGroup?.id },
+    skip: !familyGroup?.id
+  });
 
   // Subscription para alertas en tiempo real via WebSocket
   useSubscription(ALERT_CREATED, {
@@ -612,6 +1058,19 @@ export default function VitalSyncDashboard() {
               )}
             </div>
           </div>
+
+          {/* System Health Panel */}
+          <SystemHealthPanel
+            health={healthData?.systemHealth}
+            loading={healthLoading}
+          />
+
+          {/* Caregivers Panel */}
+          <CaregiversPanel
+            caregivers={caregiversData?.caregivers}
+            loading={caregiversLoading}
+            familyName={familyGroup?.name}
+          />
         </div>
 
         {/* Main Content */}
@@ -733,10 +1192,25 @@ export default function VitalSyncDashboard() {
               </div>
             </div>
           )}
+
+          {/* Weekly Trends Chart */}
+          <WeeklyTrendsChart
+            data={dailyData?.dailyAverages}
+            loading={dailyLoading}
+          />
+
+          {/* Vitals History Table */}
+          <VitalsHistoryTable
+            vitals={vitalsHistoryData?.vitals || []}
+            loading={vitalsHistoryLoading}
+            page={vitalsPage}
+            setPage={setVitalsPage}
+            hasMore={(vitalsHistoryData?.vitals?.length || 0) === VITALS_PER_PAGE}
+          />
         </div>
 
         {/* Panel de Alertas */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-4">
           <div className="bg-gray-800/50 rounded-2xl p-4 sticky top-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -770,6 +1244,12 @@ export default function VitalSyncDashboard() {
               )}
             </div>
           </div>
+
+          {/* Recent Alerts History */}
+          <RecentAlertsPanel
+            alerts={recentAlertsData?.recentAlerts}
+            loading={recentAlertsLoading}
+          />
         </div>
       </div>
 
