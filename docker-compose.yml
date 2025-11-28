@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  vitalsync-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vitalsync-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  # Servicio de desarrollo (opcional)
+  vitalsync-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: vitalsync-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+    profiles:
+      - dev
