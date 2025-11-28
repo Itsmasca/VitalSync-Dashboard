@@ -79,9 +79,9 @@ const CircularGauge = ({ value, max, min, label, unit, icon: Icon, status }) => 
 const FamilyMemberCard = ({ member, isSelected, onClick }) => {
   // Query para obtener el último vital del miembro
   const { data: vitalData } = useQuery(GET_LATEST_VITAL, {
-    variables: { memberId: member.memberId },
+    variables: { memberId: member.id },
     pollInterval: 5000,
-    skip: !member.memberId
+    skip: !member.id
   });
 
   const vital = vitalData?.latestVital;
@@ -794,12 +794,12 @@ export default function VitalSyncDashboard() {
   // Reset vitals page when member changes
   useEffect(() => {
     setVitalsPage(0);
-  }, [selectedMember?.memberId]);
+  }, [selectedMember?.id]);
 
   // Query para el vital del miembro seleccionado
   const { data: vitalData, loading: vitalLoading } = useQuery(GET_LATEST_VITAL, {
-    variables: { memberId: selectedMember?.memberId },
-    skip: !selectedMember?.memberId,
+    variables: { memberId: selectedMember?.id },
+    skip: !selectedMember?.id,
     pollInterval: 3000,
     onCompleted: () => setLastUpdate(new Date())
   });
@@ -808,8 +808,8 @@ export default function VitalSyncDashboard() {
 
   // Query para rolling vitals
   const { data: rollingData } = useQuery(GET_ROLLING_VITALS, {
-    variables: { memberId: selectedMember?.memberId, minutes: 2 },
-    skip: !selectedMember?.memberId,
+    variables: { memberId: selectedMember?.id, minutes: 2 },
+    skip: !selectedMember?.id,
     pollInterval: 5000
   });
 
@@ -834,11 +834,11 @@ export default function VitalSyncDashboard() {
 
   const { data: dailyData, loading: dailyLoading } = useQuery(GET_DAILY_AVERAGES, {
     variables: {
-      memberId: selectedMember?.memberId,
+      memberId: selectedMember?.id,
       startDate: sevenDaysAgo.toISOString().split('T')[0],
       endDate: today.toISOString().split('T')[0]
     },
-    skip: !selectedMember?.memberId
+    skip: !selectedMember?.id
   });
 
   // Query para alertas recientes (últimas 24 horas)
@@ -850,11 +850,11 @@ export default function VitalSyncDashboard() {
   // Query para historial de vitales paginado
   const { data: vitalsHistoryData, loading: vitalsHistoryLoading } = useQuery(GET_VITALS, {
     variables: {
-      memberId: selectedMember?.memberId,
+      memberId: selectedMember?.id,
       limit: VITALS_PER_PAGE,
       offset: vitalsPage * VITALS_PER_PAGE
     },
-    skip: !selectedMember?.memberId
+    skip: !selectedMember?.id
   });
 
   // Query para cuidadores
@@ -895,8 +895,8 @@ export default function VitalSyncDashboard() {
 
   // Subscription para vitales en tiempo real
   useSubscription(VITAL_UPDATED, {
-    variables: { memberId: selectedMember?.memberId },
-    skip: !selectedMember?.memberId,
+    variables: { memberId: selectedMember?.id },
+    skip: !selectedMember?.id,
     onData: ({ data }) => {
       if (data?.data?.vitalUpdated) {
         setLastUpdate(new Date());
