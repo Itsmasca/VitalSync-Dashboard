@@ -1,12 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle, ArrowLeft, Mail } from 'lucide-react';
 import { resetPassword, requestPasswordReset } from '@/lib/auth';
 
-export default function ResetPasswordPage() {
+// Componente de loading
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-8">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+    </div>
+  );
+}
+
+// Componente principal que usa useSearchParams
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -317,5 +327,14 @@ export default function ResetPasswordPage() {
         </Link>
       </div>
     </>
+  );
+}
+
+// Página principal envuelta en Suspense
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
