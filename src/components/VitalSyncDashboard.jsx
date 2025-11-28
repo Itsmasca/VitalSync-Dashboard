@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
-import { Heart, Activity, Thermometer, Footprints, AlertTriangle, Bell, Users, Wifi, WifiOff, Settings, Clock, Shield, AlertCircle, CheckCircle, LogOut, Loader2 } from 'lucide-react';
+import { Heart, Activity, Thermometer, Footprints, AlertTriangle, Bell, Users, Wifi, WifiOff, Settings, Clock, Shield, AlertCircle, CheckCircle, LogOut, Loader2, Plus, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { GET_MY_FAMILY_GROUPS, GET_FAMILY_MEMBERS, GET_LATEST_VITAL, GET_ROLLING_VITALS, GET_ACTIVE_ALERTS } from '@/lib/graphql/queries';
-import { ACKNOWLEDGE_ALERT } from '@/lib/graphql/mutations';
-import { useMutation } from '@apollo/client';
+import { ACKNOWLEDGE_ALERT, CREATE_FAMILY_GROUP } from '@/lib/graphql/mutations';
+import { ALERT_CREATED, VITAL_UPDATED } from '@/lib/graphql/subscriptions';
+import { useMutation, useSubscription } from '@apollo/client';
 
 // Mapeo de avatars por relación
 const relationshipAvatars = {
@@ -171,6 +172,149 @@ const AlertItem = ({ alert, onAcknowledge, loading }) => {
   );
 };
 
+// Modal para crear familia
+const CreateFamilyModal = ({ isOpen, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    plan: 'basic'
+  });
+  const [error, setError] = useState('');
+
+  const [createFamily, { loading }] = useMutation(CREATE_FAMILY_GROUP, {
+    onCompleted: (data) => {
+      onSuccess(data.createFamilyGroup);
+      onClose();
+    },
+    onError: (err) => {
+      setError(err.message || 'Error al crear la familia');
+    },
+    refetchQueries: [{ query: GET_MY_FAMILY_GROUPS }]
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!formData.name.trim()) {
+      setError('El nombre es requerido');
+      return;
+    }
+
+    createFamily({
+      variables: {
+        input: {
+          name: formData.name.trim(),
+          description: formData.description.trim() || null,
+          plan: formData.plan
+        }
+      }
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="relative w-full max-w-md bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Crear Familia</h2>
+              <p className="text-sm text-gray-400">Configura tu grupo familiar</p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Nombre de la familia *
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Ej: Familia García"
+                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Descripción (opcional)
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descripción de tu grupo familiar..."
+                rows={3}
+                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Plan
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {['basic', 'premium', 'enterprise'].map((plan) => (
+                  <button
+                    key={plan}
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, plan }))}
+                    className={`py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                      formData.plan === plan
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    {plan.charAt(0).toUpperCase() + plan.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-5 h-5" />
+                  Crear Familia
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Componente de Gráfico Rolling
 const RollingChart = ({ data, metric, label, statusField }) => {
   if (!data || data.length === 0) {
@@ -222,6 +366,9 @@ export default function VitalSyncDashboard() {
   const { user, logout } = useAuth();
   const [selectedMember, setSelectedMember] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [showCreateFamilyModal, setShowCreateFamilyModal] = useState(false);
+  const [realtimeAlerts, setRealtimeAlerts] = useState([]);
+  const [wsConnected, setWsConnected] = useState(false);
 
   // Query para obtener los grupos familiares
   const { data: groupsData, loading: groupsLoading } = useQuery(GET_MY_FAMILY_GROUPS);
@@ -263,12 +410,68 @@ export default function VitalSyncDashboard() {
 
   const rollingVitals = rollingData?.rollingVitals || [];
 
-  // Query para alertas activas
+  // Query para alertas activas (fallback si WebSocket falla)
   const { data: alertsData, loading: alertsLoading, refetch: refetchAlerts } = useQuery(GET_ACTIVE_ALERTS, {
-    pollInterval: 10000
+    pollInterval: wsConnected ? 0 : 10000 // Deshabilitar polling si WebSocket está conectado
   });
 
-  const alerts = alertsData?.activeAlerts || [];
+  const queryAlerts = alertsData?.activeAlerts || [];
+
+  // Subscription para alertas en tiempo real via WebSocket
+  useSubscription(ALERT_CREATED, {
+    variables: { familyId: familyGroup?.id },
+    skip: !familyGroup?.id,
+    onData: ({ data }) => {
+      if (data?.data?.alertCreated) {
+        const newAlert = data.data.alertCreated;
+        setRealtimeAlerts(prev => {
+          // Evitar duplicados
+          if (prev.some(a => a.id === newAlert.id)) return prev;
+          return [newAlert, ...prev];
+        });
+        setLastUpdate(new Date());
+        setWsConnected(true);
+
+        // Notificación del navegador si es crítica
+        if (newAlert.severity === 'CRITICAL' && Notification.permission === 'granted') {
+          new Notification('VitalSync - Alerta Crítica', {
+            body: newAlert.message,
+            icon: '/favicon.ico'
+          });
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error);
+      setWsConnected(false);
+    }
+  });
+
+  // Subscription para vitales en tiempo real
+  useSubscription(VITAL_UPDATED, {
+    variables: { memberId: selectedMember?.memberId },
+    skip: !selectedMember?.memberId,
+    onData: ({ data }) => {
+      if (data?.data?.vitalUpdated) {
+        setLastUpdate(new Date());
+        setWsConnected(true);
+      }
+    },
+    onError: () => setWsConnected(false)
+  });
+
+  // Combinar alertas de query + tiempo real (sin duplicados)
+  const alerts = [...realtimeAlerts, ...queryAlerts].reduce((acc, alert) => {
+    if (!acc.some(a => a.id === alert.id)) acc.push(alert);
+    return acc;
+  }, []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  // Solicitar permiso para notificaciones
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Mutation para reconocer alertas
   const [acknowledgeAlert, { loading: ackLoading }] = useMutation(ACKNOWLEDGE_ALERT, {
@@ -278,6 +481,8 @@ export default function VitalSyncDashboard() {
   const handleAcknowledge = async (alertId) => {
     try {
       await acknowledgeAlert({ variables: { alertId } });
+      // Actualizar estado local de alertas en tiempo real
+      setRealtimeAlerts(prev => prev.filter(a => a.id !== alertId));
     } catch (error) {
       console.error('Error al reconocer alerta:', error);
     }
@@ -303,15 +508,32 @@ export default function VitalSyncDashboard() {
           <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-white mb-2">Sin grupo familiar</h2>
           <p className="text-gray-400 mb-6">
-            No tienes ningún grupo familiar asignado. Contacta al administrador para ser agregado a un grupo.
+            No tienes ningún grupo familiar. Crea uno nuevo para empezar a monitorear a tus seres queridos.
           </p>
-          <button
-            onClick={logout}
-            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-white transition-colors"
-          >
-            Cerrar sesión
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => setShowCreateFamilyModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 rounded-xl text-white font-medium transition-all flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Crear Familia
+            </button>
+            <button
+              onClick={logout}
+              className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-white transition-colors"
+            >
+              Cerrar sesión
+            </button>
+          </div>
         </div>
+
+        <CreateFamilyModal
+          isOpen={showCreateFamilyModal}
+          onClose={() => setShowCreateFamilyModal(false)}
+          onSuccess={() => {
+            setShowCreateFamilyModal(false);
+          }}
+        />
       </div>
     );
   }
@@ -335,9 +557,9 @@ export default function VitalSyncDashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-emerald-500/10 text-emerald-400">
-            <Wifi className="w-4 h-4" />
-            <span>Conectado</span>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${wsConnected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+            {wsConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+            <span>{wsConnected ? 'Tiempo Real' : 'Polling'}</span>
           </div>
           <div className="text-xs text-gray-500">
             <Clock className="w-3 h-3 inline mr-1" />
@@ -554,7 +776,9 @@ export default function VitalSyncDashboard() {
       {/* Footer */}
       <footer className="mt-8 text-center text-xs text-gray-500">
         <p>VitalSync • {familyGroup.name} • {familyMembers.length} miembros</p>
-        <p className="mt-1">GraphQL • Real-time Updates</p>
+        <p className="mt-1">
+          GraphQL • {wsConnected ? 'WebSocket Real-time' : 'Polling Fallback'}
+        </p>
       </footer>
     </div>
   );
