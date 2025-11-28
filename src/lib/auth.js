@@ -1,6 +1,6 @@
 // Servicio de autenticación para conectar con el backend FastAPI
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 /**
  * Registrar nuevo usuario
@@ -72,7 +72,7 @@ export async function refreshToken() {
   const data = await response.json();
 
   if (!response.ok) {
-    // Si el refresh falla, limpiar tokens
+
     clearTokens();
     throw new Error(data.detail || 'Sesión expirada');
   }
@@ -82,10 +82,7 @@ export async function refreshToken() {
   return data;
 }
 
-/**
- * Reset de contraseña (resetea al valor por defecto)
- * El backend resetea la contraseña a DEFAULT_PASSWORD o VitalSync123!
- */
+
 export async function requestPasswordReset(email) {
   const response = await fetch(`${API_URL}/auth/password-reset`, {
     method: 'POST',
