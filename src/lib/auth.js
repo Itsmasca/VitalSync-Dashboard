@@ -83,10 +83,11 @@ export async function refreshToken() {
 }
 
 /**
- * Solicitar reset de contraseña
+ * Reset de contraseña (resetea al valor por defecto)
+ * El backend resetea la contraseña a DEFAULT_PASSWORD o VitalSync123!
  */
 export async function requestPasswordReset(email) {
-  const response = await fetch(`${API_URL}/auth/password-reset-request`, {
+  const response = await fetch(`${API_URL}/auth/password-reset`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -97,28 +98,7 @@ export async function requestPasswordReset(email) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.detail || 'Error al solicitar reset');
-  }
-
-  return data;
-}
-
-/**
- * Confirmar reset de contraseña
- */
-export async function resetPassword({ token, password, password_confirm }) {
-  const response = await fetch(`${API_URL}/auth/password-reset`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ token, password, password_confirm }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.detail || 'Error al cambiar contraseña');
+    throw new Error(data.detail || 'Error al resetear contraseña');
   }
 
   return data;

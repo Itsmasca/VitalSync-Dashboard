@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Heart, Activity, Thermometer, Footprints, AlertTriangle, Bell, Users, Wifi, WifiOff, Settings, ChevronDown, RefreshCw, User, Clock, Shield, AlertCircle, CheckCircle } from 'lucide-react';
+import { Heart, Activity, Thermometer, Footprints, AlertTriangle, Bell, Users, Wifi, WifiOff, Settings, ChevronDown, RefreshCw, User, Clock, Shield, AlertCircle, CheckCircle, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Datos simulados basados en el DDL de VitalSync
 const familyMembers = [
@@ -250,6 +251,7 @@ const RollingChart = ({ data, metric, label }) => {
 
 // Componente Principal del Dashboard
 export default function VitalSyncDashboard() {
+  const { user, logout } = useAuth();
   const [selectedMember, setSelectedMember] = useState(familyMembers[0]);
   const [vitalsData, setVitalsData] = useState({});
   const [vitalsHistory, setVitalsHistory] = useState({});
@@ -355,6 +357,21 @@ export default function VitalSyncDashboard() {
             <Clock className="w-3 h-3 inline mr-1" />
             {lastUpdate.toLocaleTimeString()}
           </div>
+          {user && (
+            <div className="flex items-center gap-2 pl-3 border-l border-gray-700">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm text-white">{user.email}</p>
+                <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+              </div>
+              <button
+                onClick={logout}
+                className="p-2 rounded-lg bg-gray-700/50 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
